@@ -2,6 +2,7 @@
 
 const savor = require('savor')
 const { Archive, File } = require('../..')
+const path = require('path')
 const fs = require('fs-extra')
 const npm = require('libnpm')
 
@@ -41,7 +42,7 @@ add('should load a valid archive', (context, done) => {
     savor.promiseShouldSucceed(archive.load(), done, (output) => {
         stub.restore()
         stub2.restore()
-        context.expect(archive.files.length).to.equal(8)
+        context.expect(archive.files.length).to.equal(12)
     })
 }).
 
@@ -83,6 +84,22 @@ add('should download a specific package version', (context, done) => {
         stub2.restore()
     })
 }).
+
+add('should save to a destination', (context, done) => {
+    const archive = new Archive({ dir: context.dir, id: 'test-archive', version: '1' })
+    const dest = path.resolve(context.dir, 'dest')
+
+    savor.addAsset('assets/test-archive', 'test-archive/1', context)
+
+    // It shouldn't be there yet
+    context.expect(fs.existsSync(path.resolve(context.dir, 'dest', 'test.js'))).to.be.false
+
+    savor.promiseShouldSucceed(archive.save(dest, { info: "test" }), done, () => {
+        // Make sure it was saved
+        context.expect(fs.existsSync(path.resolve(context.dir, 'dest', 'test.js'))).to.be.true
+    })
+}).
+
 
 
 run('[Rara] Archive')

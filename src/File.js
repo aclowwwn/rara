@@ -1,7 +1,7 @@
 const ejs = require('ejs')
 const fs = require('fs-extra')
 const path = require('path')
-const { FileAdapter, ImageAdapter} = require('binda')
+const { FileAdapter} = require('binda')
 class _ {
     constructor(props) {
         this._props = Object.assign({}, props)
@@ -29,14 +29,13 @@ class _ {
 
     get type () {
         return this._type || _.TYPES.ASSET
-    }
+    }  
 
     detectType () {
         if (this._type) {
             // Not necessary
             return 
         }
-
         // Figure out the file's extension
         const ext = path.extname(this.path).toUpperCase().substring(1)
 
@@ -44,6 +43,10 @@ class _ {
             if (values.includes(ext)) {
                 // Looks like we recognize this type
                 this._type = values
+                // Trying to reuse to same function to save not just the type (value), but the overall category
+                this._adapter = type
+
+                
                 return 
             }
         }
@@ -53,31 +56,25 @@ class _ {
         return !_.NONCOMPILABLE_TYPES.includes(this.type)
     }
 
-    compile(args, options = {}) {
-        if (!this.isCompilable) {
-            // No need to compile
-            return Promise.resolve()
-        }
+    process(args, options = {}) {
 
         return new Promise((resolve, reject) => {
             try {
                 // Attempt to load the file 
-                const content = fs.readFileSync(this.path, 'utf8')
+                // HELP NEEDED not sure if I just read the stream like this or need to pipe it
+                const readStream = fs.createReadStream(this.path)
 
-                if (!content) {
+                if (!readStream) {
                     // Next let's make sure we stop right here for empty files
                     resolve("")
                     return
                 }
 
-                // Try to parse the file and catch syntax errors
-                const template = ejs.compile(content, {})
+                // Create a new adapter
+                const adapter = new FileAdapter()
 
-                // Finally, let's see if we can validate it
-                const output = template(args)
-
-                // We're good
-                resolve(options.json ? JSON.parse(output, null, 2) : output)
+                resolve(adapter.process(readStream))
+                
             } catch (error) {
                 reject(new Error(_.ERRORS.CANNOT_LOAD(error.message)))
             }
@@ -93,11 +90,15 @@ class _ {
         // Let's see if this is a recognized file y]type 
         this.detectType()
 
-        // Compile the file if necessary
-        return this.compile(args, options)
+        // Process the file
+        return this.process(args, options)
     }
 
     copy(dest) {
+        // Create sub directories if necessary
+        const dir = path.resolve(dest, path.dirname(this.filepath))
+        fs.existsSync(dir) || fs.mkdirs(dir)
+
         return new Promise((resolve, reject) => {
             // Let's move the file over
             fs.copySync(this.path, path.resolve(dest, this.filepath))
@@ -111,6 +112,7 @@ class _ {
             // First make sure the file exists
             return Promise.reject(new Error(_.ERRORS.CANNOT_SAVE('it does not exist')))
         }
+        
         if (!fs.existsSync(dest)) {
             // First make sure the destination location
             return Promise.reject(new Error(_.ERRORS.CANNOT_SAVE('the destination does not exist')))
@@ -119,14 +121,14 @@ class _ {
         // Let's see if this is a recognized file type 
         this.detectType()
 
-        // Create sub directories if necessary
-        const dir = path.resolve(this.dir, path.dirname(this.filepath))
-        fs.exists(dir) || fs.mkdirs(dir)
-
         if (!this.isCompilable) {
             // Let's move the file over
             return this.copy(dest)
         }
+
+        // Create sub directories if necessary
+        const dir = path.resolve(dest, path.dirname(this.filepath))
+        fs.existsSync(dir) || fs.mkdirsSync(dir)
 
         // Load and then save it
         return this.load(args).then((output) => {
@@ -139,6 +141,15 @@ class _ {
 _.ERRORS = {
     CANNOT_LOAD: (reason) => reason ? `Cannot load file because ${reason}` : `Cannot load file`,
     CANNOT_SAVE: (reason) => reason ? `Cannot save file because ${reason}` : `Cannot save file`
+}
+
+_.ADAPTERS = {
+    ASSET: FileAdapter,
+    IMAGE: ImageAdapter,
+    JSON: FileAdapter,
+    JAVASCRIPT: FileAdapter,
+    CSS: FileAdapter,
+    MARKDOWN: FileAdapter
 }
 
 _.TYPES = {
