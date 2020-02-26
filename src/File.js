@@ -1,7 +1,7 @@
 const ejs = require('ejs')
 const fs = require('fs-extra')
 const path = require('path')
-const { FileAdapter} = require('binda')
+const { FileAdapter, ImageAdapter} = require('binda')
 class _ {
     constructor(props) {
         this._props = Object.assign({}, props)
@@ -37,17 +37,23 @@ class _ {
             return 
         }
         // Figure out the file's extension
-        const ext = path.extname(this.path).toUpperCase().substring(1)
+        const stringPathSplit = this.path ? this.path.split('.') : ''
+
+        let fileExtension = stringPathSplit[
+            stringPathSplit.length - 1
+        ].toUpperCase()
+
+        fileExtension =
+            fileExtension === 'REMOTE'?
+                stringPathSplit[stringPathSplit.length - 2].toUpperCase()
+                :
+                fileExtension
 
         for (let [type, values] of Object.entries(_.TYPES)) {
-            if (values.includes(ext)) {
+            if (values.includes(fileExtension)) {
                 // Looks like we recognize this type
-                this._type = values
-                // Trying to reuse to same function to save not just the type (value), but the overall category
-                this._adapter = type
-
-                
-                return 
+                this._type = type
+                return
             }
         }
     }
@@ -61,7 +67,6 @@ class _ {
         return new Promise((resolve, reject) => {
             try {
                 // Attempt to load the file 
-                // HELP NEEDED not sure if I just read the stream like this or need to pipe it
                 const readStream = fs.createReadStream(this.path)
 
                 if (!readStream) {
@@ -70,8 +75,20 @@ class _ {
                     return
                 }
 
+                // We want to use the right adapter
                 // Create a new adapter
-                const adapter = new FileAdapter()
+                let adapter
+
+                switch (this.type) {
+                    case 'IMAGE':
+                        adapter = new ImageAdapter()
+                        break;
+                    default:
+                        adapter = new FileAdapter()
+                }
+
+                // might be a working solution - needs tested
+                // const adapter = new _.ADAPTERS[this.type]()
 
                 resolve(adapter.process(readStream))
                 
@@ -87,8 +104,12 @@ class _ {
             return Promise.reject(new Error(_.ERRORS.CANNOT_LOAD('it does not exist')))
         }
 
-        // Let's see if this is a recognized file y]type 
+        // Let's see if this is a recognized file type 
         this.detectType()
+
+        if (!this.type) {
+            return Promise.reject(new Error(_.ERRORS.CANNOT_LOAD('it does not exist')))
+        }
 
         // Process the file
         return this.process(args, options)

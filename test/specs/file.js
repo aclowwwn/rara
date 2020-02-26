@@ -42,11 +42,11 @@ add('should not save a missing file', (context, done) => {
 
 
 add('should specify the right adapter type', (context, done) => {
-    const file = new File({ dir: context.dir, filepath: 'test.json' })
+    const file = new File({ dir: context.dir, filepath: 'test.json.remote' })
     savor.addAsset('assets/test.json', 'test.json', context)
 
     savor.promiseShouldSucceed(file.load(), done, (error) => {
-        context.expect(file.adapter).to.equal('JSON')
+        context.expect(file.type).to.equal('JSON')
     })
 }).
 
