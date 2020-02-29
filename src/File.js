@@ -90,6 +90,7 @@ class _ {
                 // might be a working solution - needs tested
                 // const adapter = new _.ADAPTERS[this.type]()
 
+                // result should be a write stream
                 resolve(adapter.process(readStream))
                 
             } catch (error) {
